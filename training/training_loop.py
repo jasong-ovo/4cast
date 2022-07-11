@@ -146,7 +146,7 @@ def training_loop(
                 if rank == vis_rank:
                     print('shape', xs.shape)
                     print("Training Epoch: {:02d} Step: {:04d} gpumen:{:.1f}G MSE: {:.4f} ".format(epoch, step + 1, gpumen, np.mean(losses[:-(loss_step-1)])))
-                break
+                # break
             model.requires_grad_(False)
 
         tick_end_time = time.time()
@@ -235,7 +235,7 @@ def training_loop(
                 gpumen = get_avaliable_memory(device, rank)
                 if rank == vis_rank:
                     print("Finetuning Epoch: {:02d} Step: {:04d} gpumen:{:.1f}G MSE: {:.4f} ".format(epoch, step + 1, gpumen, np.mean(losses[:-(loss_step-1)])))
-                break
+                # break
             model.requires_grad_(False)
 
         tick_end_time = time.time()
