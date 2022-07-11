@@ -101,9 +101,9 @@ def parse_comma_separated_list(s):
 
 # training_kwargs.
 @click.option('--gpus',      help='Number of GPUs to use', metavar='INT',       default=8,                     type=click.IntRange(min=1))
-@click.option('--batch',     help='Total batch size', metavar='INT',            default=80,                    type=click.IntRange(min=1))
-@click.option('--epoch_t',   help='Epoch of pretraining', metavar='INT',        default=80,                    type=click.IntRange(min=1))
-@click.option('--epoch_f',   help='Epoch of finetunng', metavar='INT',          default=50,                    type=click.IntRange(min=1))
+@click.option('--batch',     help='Total batch size', metavar='INT',            default=256,                    type=click.IntRange(min=1))
+@click.option('--epoch_t',   help='Epoch of pretraining', metavar='INT',        default=80,                    type=click.IntRange(min=0))
+@click.option('--epoch_f',   help='Epoch of finetunng', metavar='INT',          default=50,                    type=click.IntRange(min=0))
 @click.option('--resume',    help='Resume from given network pickle', metavar='[PATH|URL]', default=None,      type=str)
 @click.option('--desc',      help='String to include in result dir name', metavar='STR',                       type=str)
 @click.option('--dry_run',   help='do nothing', metavar='BOOL',                 default=False,                 type=click.BOOL,  show_default=True)
@@ -115,8 +115,8 @@ def parse_comma_separated_list(s):
 @click.option('--sched',     help='scheduler type', metavar='SCHEDULER',        default='cosine',              type=str)
 @click.option('--lr_noise',  help='learning rate ',  metavar='FLOAT',           default=None,                  type=click.FloatRange(min=0))
 @click.option('--min_lr',    help='learning rate low bound',  metavar='FLOAT',  default=1e-5,                  type=click.FloatRange(min=0))
-@click.option('--warmup_lr', help='learning rate ',  metavar='FLOAT',           default=1e-6,                  type=click.FloatRange(min=0))
-@click.option('--warmup_epochs', help='Random seed', metavar='INT',             default=5,                     type=click.IntRange(min=0), show_default=True)
+@click.option('--warmup_lr', help='learning rate ',  metavar='FLOAT',           default=5e-4,                  type=click.FloatRange(min=0))
+@click.option('--warmup_epochs', help='Random seed', metavar='INT',             default=10,                     type=click.IntRange(min=0), show_default=True)
 @click.option('--cooldown_epochs', help='Random seed', metavar='INT',           default=10,                     type=click.IntRange(min=0), show_default=True)
 
 
@@ -168,12 +168,14 @@ def main(**kwargs):
 
     c.scheduler_kwargs = dnnlib.EasyDict()
     c.scheduler_kwargs.sched = opts.sched
-    c.scheduler_kwargs.epochs = opts.epoch_t - opts.cooldown_epochs
+    c.scheduler_kwargs.epochs = max(opts.epoch_t - opts.warmup_epochs, 1)
     c.scheduler_kwargs.lr_noise = opts.lr_noise
     c.scheduler_kwargs.min_lr = opts.min_lr
     c.scheduler_kwargs.warmup_lr = opts.warmup_lr
     c.scheduler_kwargs.warmup_epochs = opts.warmup_epochs
     c.scheduler_kwargs.cooldown_epochs = opts.cooldown_epochs
+
+
 
     c.visualize_kwargs = dnnlib.EasyDict()
     c.visualize_kwargs.vis_loss_step = opts.vis_loss_step
