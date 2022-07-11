@@ -144,7 +144,7 @@ def training_loop(
                 misc.check_ddp_consistency(model, ignore_regex=r'.*\.[^.]+_(avg|ema)')
                 gpumen = get_avaliable_memory(device, rank)
                 if rank == vis_rank:
-                    print('shape', xs.shape)
+                    # print('shape', xs.shape)
                     print("Training Epoch: {:02d} Step: {:04d} gpumen:{:.1f}G MSE: {:.4f} ".format(epoch, step + 1, gpumen, np.mean(losses[:-(loss_step-1)])))
                 # break
             model.requires_grad_(False)
@@ -160,6 +160,7 @@ def training_loop(
     # Save network snapshot for training.
     snapshot_pkl = None
     snapshot_data = None
+
     snapshot_data = dict(training_set_kwargs=dict(training_set_kwargs), network_kwargs=dict(network_kwargs))
     for name, module in [('model', model)]:
         if module is not None:
