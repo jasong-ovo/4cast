@@ -1,7 +1,7 @@
-# IfGAN for Climate ForeCast
-## Dataset download and preprocess
-## Reproduction of FourCastNet
-## VQVAE （coming soon）
+### IfGAN for Climate ForeCast
+1. Dataset download and preprocess
+2. Reproduction of FourCastNet
+3. VQVAE （coming soon）
 
-## Dataset ERA5 Introduction
+### Dataset ERA5 Introduction
 https://demo.hedgedoc.org/n5gpaBK-T6at1OyVkW9QyQ?edit
