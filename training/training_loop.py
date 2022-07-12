@@ -20,6 +20,7 @@ import timm.optim
 from timm.scheduler import create_scheduler
 from torch.nn.parallel import DistributedDataParallel
 warnings.filterwarnings("ignore", message="Argument interpolation should be")
+warnings.filterwarnings("ignore", message="leaker semaphore objects")
 
 def get_avaliable_memory(device, rank):
     if rank >= 0:
@@ -111,9 +112,7 @@ def training_loop(
         tick_start_time = time.time()
         losses = []
         for step, batch in enumerate(training_set_dataloader):
-
             xs, xt = [x.half().to(device, non_blocking=True) for x in batch]
-
             model.requires_grad_(True)
             with torch.cuda.amp.autocast():
                 xt_hat = model(xs)
