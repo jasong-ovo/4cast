@@ -124,7 +124,7 @@ def parse_comma_separated_list(s):
 # training_set_kwargs
 @click.option('--dataset',   help='Dataset class',                              default='ERA5GDataset',         type=str)
 @click.option('--dir_data',  help='Path of training data',                      default='/mnt/lustre/chenzhuo1/era5G32x64',         type=str)
-@click.option('--workers',   help='DataLoader worker processes', metavar='INT', default=16,                     type=click.IntRange(min=0),  show_default=True)
+@click.option('--workers',   help='DataLoader worker processes', metavar='INT', default=24,                     type=click.IntRange(min=0),  show_default=True)
 @click.option('--drop_last', help='Forget unfull batch', metavar='BOOL',        default=True,                  type=bool, show_default=True)
 @click.option('--pin_memory',help='pin_memory', metavar='BOOL',                 default=False,                  type=bool, show_default=True)
 
