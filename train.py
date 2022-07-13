@@ -8,6 +8,7 @@ import tempfile
 import click
 from training.training_loop import training_loop
 from configs.param import get_args
+
 #----------------------------------------------------------------------------
 
 def subprocess_fn(rank, c, temp_dir):
@@ -123,9 +124,9 @@ def parse_comma_separated_list(s):
 # training_set_kwargs
 @click.option('--dataset',   help='Dataset class',                              default='ERA5GDataset',         type=str)
 @click.option('--dir_data',  help='Path of training data',                      default='/mnt/lustre/chenzhuo1/era5G32x64',         type=str)
-@click.option('--workers',   help='DataLoader worker processes', metavar='INT', default=32,                     type=click.IntRange(min=0),  show_default=True)
+@click.option('--workers',   help='DataLoader worker processes', metavar='INT', default=16,                     type=click.IntRange(min=0),  show_default=True)
 @click.option('--drop_last', help='Forget unfull batch', metavar='BOOL',        default=True,                  type=bool, show_default=True)
-@click.option('--pin_memory',help='pin_memory', metavar='BOOL',                 default=True,                  type=bool, show_default=True)
+@click.option('--pin_memory',help='pin_memory', metavar='BOOL',                 default=False,                  type=bool, show_default=True)
 
 # network_kwargs
 @click.option('--resh',      help='Base configuration',                         default=32,                     type=int)
@@ -139,6 +140,7 @@ def parse_comma_separated_list(s):
 # visualize_kwargs
 @click.option('--vis_loss_step',help='print loss frequency', metavar='INT',     default=40,                    type=click.IntRange(min=0),  show_default=True)
 @click.option('--vis_rank', help='visualization rank', metavar='INT',           default=0,                     type=click.IntRange(min=0),  show_default=True)
+@click.option('--dump_epoch', help='visualization rank', metavar='INT',         default=20,                     type=click.IntRange(min=0),  show_default=True)
 
 def main(**kwargs):
     opts = dnnlib.EasyDict(kwargs) # Command line arguments.
@@ -180,6 +182,7 @@ def main(**kwargs):
     c.visualize_kwargs = dnnlib.EasyDict()
     c.visualize_kwargs.vis_loss_step = opts.vis_loss_step
     c.visualize_kwargs.vis_rank = opts.vis_rank
+    c.visualize_kwargs.dump_epoch = opts.dump_epoch
 
 
     desc = f'{opts.cfg:s}-gpus{c.num_gpus:d}-batch{c.batch_size:d}'

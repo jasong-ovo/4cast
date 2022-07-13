@@ -15,13 +15,15 @@ from datasets.dataset import init_dataset
 from torch.utils.data.distributed import DistributedSampler
 from datasets.sampler import InfiniteSampler, RASampler
 from models.module import AFNONet
+from utils.io import save_model
+
 import warnings
 import timm.optim
 from timm.scheduler import create_scheduler
 from torch.nn.parallel import DistributedDataParallel
 warnings.filterwarnings("ignore", message="Argument interpolation should be")
 warnings.filterwarnings("ignore", message="leaker semaphore objects")
-
+# export PYTHONWARNINGS='ignore:semaphore_tracker:UserWarning'
 def get_avaliable_memory(device, rank):
     if rank >= 0:
         pynvml.nvmlInit()
@@ -61,6 +63,7 @@ def training_loop(
     accumulation_steps = 1
     loss_step = visualize_kwargs.vis_loss_step
     vis_rank = visualize_kwargs.vis_rank
+    dump_epoch = visualize_kwargs.dump_epoch
     device = torch.device('cuda', rank)
     np.random.seed(random_seed * num_gpus + rank)
     torch.manual_seed(random_seed * num_gpus + rank)
@@ -139,19 +142,29 @@ def training_loop(
             if (step + 1) % loss_step == 0:
                 misc.check_ddp_consistency(model, ignore_regex=r'.*\.[^.]+_(avg|ema)')
                 gpumen = get_avaliable_memory(device, rank)
+                cpumen = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 3
+
                 if rank == vis_rank:
                     # print('shape', xs.shape)
-                    print("Training Epoch: {:02d} Step: {:04d} gpumen:{:.1f}G MSE: {:.4f} ".format(epoch, step + 1, gpumen, np.mean(losses[:-(loss_step-1)])))
+                    print("Training Epoch: {:02d} Step: {:04d} cpumen:{:.1f}G gpumen:{:.1f}G MSE: {:.4f} ".format(epoch, step + 1, cpumen, gpumen, np.mean(losses[:-(loss_step-1)])))
                 # break
+
             model.requires_grad_(False)
 
         tick_end_time = time.time()
         tick_time = tick_end_time - tick_start_time
         misc.check_ddp_consistency(model, ignore_regex=r'.*\.[^.]+_(avg|ema)')
         gpumen = get_avaliable_memory(device, rank)
+        cpumen = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 3
+
         if rank == vis_rank:
-            print("Training Epoch: {:02d} gpumen:{:.1f}G MSE: {:.4f} Time: {:02d}min".format(epoch, gpumen, np.mean(losses), int(tick_time //60)))
+            print("Training Epoch: {:02d} cpumen:{:.1f}G gpumen:{:.1f}G MSE: {:.4f} Time: {:02d}min".format(epoch, cpumen, gpumen, np.mean(losses), int(tick_time //60)))
         lr_scheduler.step(epoch)
+        # if (epoch+1) % dump_epoch == 0:
+
+
+
+
     model.eval()
     # Save network snapshot for training.
     snapshot_pkl = None
@@ -260,8 +273,10 @@ def training_loop(
             if (step + 1) % loss_step == 0:
                 misc.check_ddp_consistency(model, ignore_regex=r'.*\.[^.]+_(avg|ema)')
                 gpumen = get_avaliable_memory(device, rank)
+                cpumen = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 3
+
                 if rank == vis_rank:
-                    print("Finetuning Epoch: {:02d} Step: {:04d} gpumen:{:.1f}G MSE: {:.4f} ".format(epoch, step + 1, gpumen, np.mean(losses[:-(loss_step-1)])))
+                    print("Finetuning Epoch: {:02d} Step: {:04d} cpumen:{:.1f}G gpumen:{:.1f}G MSE: {:.4f} ".format(epoch, step + 1, cpumen, gpumen, np.mean(losses[:-(loss_step-1)])))
                 # break
             model.requires_grad_(False)
 
@@ -269,8 +284,9 @@ def training_loop(
         tick_time = tick_end_time - tick_start_time
         misc.check_ddp_consistency(model, ignore_regex=r'.*\.[^.]+_(avg|ema)')
         gpumen = get_avaliable_memory(device, rank)
+        cpumen = psutil.Process(os.getpid()).memory_info().rss / 1024 ** 3
         if rank == vis_rank:
-            print("Finetuning Epoch: {:02d} gpumen:{:.1f}G MSE: {:.4f} Time: {:02d}min".format(epoch, gpumen, np.mean(losses), int(tick_time //60)))
+            print("Finetuning Epoch: {:02d} cpumen:{:.1f}G gpumen:{:.1f}G MSE: {:.4f} Time: {:02d}min".format(epoch, cpumen, gpumen, np.mean(losses), int(tick_time //60)))
         lr_scheduler.step(epoch)
 
     # Save network snapshot for training.
@@ -292,5 +308,6 @@ def training_loop(
     snapshot_data = None
 
     return None
+
 
 
