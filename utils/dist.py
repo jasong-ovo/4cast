@@ -4,6 +4,7 @@ import os
 import time
 from collections import defaultdict, deque
 import datetime
+import pynvml, psutil
 
 import torch
 import torch.distributed as dist
@@ -72,3 +73,17 @@ def init_distributed_mode(args):
                                          world_size=args.world_size, rank=args.rank)
     torch.distributed.barrier()
     setup_for_distributed(args.rank == 0)
+
+def get_avaliable_memory(device, rank):
+    if rank >= 0:
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(rank)        # 0表示第一块显卡
+        meminfo = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        ava_mem = round(meminfo.free/1024.0**3)
+
+    elif device==torch.device('cpu'):
+        mem = psutil.virtual_memory()
+        print('current available memory is' +' : '+ str(round(mem.used/1024**3)) +' GIB')
+        ava_mem=round(mem.used/1024**3)
+
+    return ava_mem

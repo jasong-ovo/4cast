@@ -1,4 +1,3 @@
-from calendar import c
 import os
 import torch
 from torch_utils import training_stats, custom_ops
@@ -8,7 +7,7 @@ import dnnlib
 import tempfile
 import click
 from configs.param import get_args
-from training.evaluating_loop import evaluating_loop
+from training.evaluating_loop_fsafno import evaluating_loop
 
 #----------------------------------------------------------------------------
 
@@ -67,7 +66,7 @@ def launch_evaluating(c, desc, outdir, dry_run):
         return
     # Launch processes.
     print('Launching processes...')
-    torch.multiprocessing.set_start_method('spawn', force=True)
+    torch.multiprocessing.set_start_method('spawn')
     with tempfile.TemporaryDirectory() as temp_dir:
         if c.num_gpus == 1:
             subprocess_fn(rank=0, c=c, temp_dir=temp_dir)
@@ -90,7 +89,7 @@ def parse_comma_separated_list(s):
 # basic_kwargs.
 @click.option('--outdir',    help='Where to save the results', metavar='DIR',   default='/mnt/lustre/chenzhuo1/IF_WKP',type=str)
 @click.option('--cfg',       help='Base configuration',                         default='era5G32x64',                type=str)
-@click.option('--resume',    help='Resume from given network pickle', metavar='[PATH|URL]', default='/mnt/lustre/gongjunchao/IF_WKP/r_models/148-network-snapshot-finetuning-best.pkl',      type=str)
+@click.option('--resume',    help='Resume from given network pickle', metavar='[PATH|URL]', default='/mnt/lustre/gongjunchao/IF_WKP/r_00109-era5R32x64-gpus1-batch32/network-snapshot-finetuning-epoch-80.pkl',      type=str)
 @click.option('--desc',      help='String to include in result dir name', metavar='STR',                       type=str)
 @click.option('--seed',      help='Random seed', metavar='INT',                 default=1,                     type=click.IntRange(min=0), show_default=True)
 @click.option('--length',    help='prediction step', metavar='INT',             default=20,                     type=click.IntRange(min=0), show_default=True)
@@ -99,9 +98,7 @@ def parse_comma_separated_list(s):
 @click.option('--gpus',      help='Number of GPUs to use', metavar='INT',       default=8,                     type=click.IntRange(min=1))
 @click.option('--batch',     help='Total batch size', metavar='INT',            default=80,                    type=click.IntRange(min=1))
 @click.option('--desc',      help='String to include in result dir name', metavar='STR',                       type=str)
-@click.option('--mode',      help='Precessing mode',                            default='test',                type=click.Choice(['train', 'valid', 'test']), show_default=True)
-@click.option('--std_trans', help='trans std from new to old', metavar='BOOL',        default=False,                  type=bool, show_default=True)
-@click.option('--use_transform', help='use transform', metavar='BOOL',        default=False,                  type=bool, show_default=True)
+@click.option('--mode',      help='Precessing mode',                            default='valid',                type=click.Choice(['train', 'valid', 'test']), show_default=True)
 
 # training_set_kwargs
 @click.option('--dataset',   help='Dataset class',                              default='ERA5GDataset',         type=str)
@@ -109,15 +106,18 @@ def parse_comma_separated_list(s):
 @click.option('--workers',   help='DataLoader worker processes', metavar='INT', default=4,                     type=click.IntRange(min=0),  show_default=True)
 @click.option('--drop_last', help='Forget unfull batch', metavar='BOOL',        default=False,                  type=bool, show_default=True)
 @click.option('--pin_memory',help='pin_memory', metavar='BOOL',                 default=False,                  type=bool, show_default=True)
+@click.option('--in_length',   help='init input length',                        default=6,                      type=int) 
 
 # network_kwargs
-@click.option('--resh',      help='Base configuration',                         default=32,                     type=int)
-@click.option('--resw',      help='Base configuration',                         default=64,                     type=int)
+@click.option('--resh',      help='Base configuration',                         default=32,                     type=int) #32
+@click.option('--resw',      help='Base configuration',                         default=64,                     type=int) #64
+@click.option('--rest',      help='Base configuration',                         default=6,                     type=int)
 @click.option('--patch_size',help='Base configuration',                         default=8,                      type=int)
+@click.option('--patch_size_t',help='Base configuration',                       default=2,                      type=int)
 @click.option('--in_chans',  help='Base configuration',                         default=20,                     type=int)
 @click.option('--out_chans', help='Base configuration',                         default=20,                     type=int)
-@click.option('--embed_dim', help='Base configuration',                         default=768,                    type=int)
-@click.option('--depth',     help='Base configuration',                         default=12,                     type=int)
+@click.option('--embed_dim', help='Base configuration',                         default=384,                    type=int) #768
+@click.option('--depth',     help='Base configuration',                         default=6,                     type=int) #12
 @click.option('--mlp_ratio', help='Base configuration',                         default=4,                      type=int)
 
 # visualize_kwargs
@@ -143,12 +143,12 @@ def main(**kwargs):
     c.enames = opts.enames
 
     c.dataset_kwargs = dnnlib.EasyDict()
+    c.dataset_kwargs.in_length = opts.in_length
     c.dataset_kwargs.class_name = opts.dataset
     c.dataset_kwargs.root = opts.dir_data
     c.dataset_kwargs.mode = opts.mode
     c.dataset_kwargs.length = opts.length
     c.dataset_kwargs.crop_coord = None
-    c.dataset_kwargs.std_trans = opts.std_trans 
 
     c.data_loader_kwargs = dnnlib.EasyDict(prefetch_factor=2)
     c.data_loader_kwargs.num_workers = opts.workers
@@ -161,8 +161,9 @@ def main(**kwargs):
 
 
     c.network_kwargs = dnnlib.EasyDict()
-    c.network_kwargs.img_size = [opts.resh, opts.resw]
+    c.network_kwargs.clip_size = [opts.rest, opts.resh, opts.resw]
     c.network_kwargs.patch_size = opts.patch_size
+    c.network_kwargs.patch_size_T = opts.patch_size_t
     c.network_kwargs.in_chans = opts.in_chans
     c.network_kwargs.out_chans = opts.out_chans
     c.network_kwargs.embed_dim = opts.embed_dim

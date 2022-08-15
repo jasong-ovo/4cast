@@ -89,5 +89,5 @@ def get_args_parser():
 def get_args():
     parser = argparse.ArgumentParser('GFNet training and evaluation script', parents=[get_args_parser()])
     global _GLOBAL_ARGS
-    _GLOBAL_ARGS = parser.parse_args()
+    _GLOBAL_ARGS, unknown = parser.parse_known_args()
     return _GLOBAL_ARGS

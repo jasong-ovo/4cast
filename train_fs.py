@@ -1,12 +1,13 @@
 import os
 import torch
+from traitlets import default
 from torch_utils import training_stats, custom_ops
 import re
 import json
 import dnnlib
 import tempfile
 import click
-from training.training_loop import training_loop
+from training.training_loop_fsafno import training_loop
 from configs.param import get_args
 
 #----------------------------------------------------------------------------
@@ -76,10 +77,7 @@ def launch_training(c, desc, outdir, dry_run):
 
     # Launch processes.
     print('Launching processes...')
-    try:
-        torch.multiprocessing.set_start_method('spawn')
-    except:
-        pass
+    torch.multiprocessing.set_start_method('spawn')
     with tempfile.TemporaryDirectory() as temp_dir:
         if c.num_gpus == 1:
             subprocess_fn(rank=0, c=c, temp_dir=temp_dir)
@@ -105,30 +103,23 @@ def parse_comma_separated_list(s):
 
 # training_kwargs.
 @click.option('--gpus',      help='Number of GPUs to use', metavar='INT',       default=8,                     type=click.IntRange(min=1))
-@click.option('--batch',     help='Total batch size', metavar='INT',            default=128,                    type=click.IntRange(min=1)) #64, 128
+@click.option('--batch',     help='Total batch size', metavar='INT',            default=256,                    type=click.IntRange(min=1))
 @click.option('--epoch_t',   help='Epoch of pretraining', metavar='INT',        default=80,                    type=click.IntRange(min=0)) #80
 @click.option('--epoch_f',   help='Epoch of finetunng', metavar='INT',          default=50,                    type=click.IntRange(min=0)) #50
-@click.option('--resume',    help='Resume from given network pickle', metavar='[PATH|URL]', default=None,      type=str) #None
+@click.option('--resume',    help='Resume from given network pickle', metavar='[PATH|URL]', default=None,      type=str)
 @click.option('--desc',      help='String to include in result dir name', metavar='STR',                       type=str)
 @click.option('--dry_run',   help='do nothing', metavar='BOOL',                 default=False,                 type=click.BOOL,  show_default=True)
-@click.option('--seed',      help='Random seed', metavar='INT',                 default=42,                     type=click.IntRange(min=0), show_default=True)
-@click.option('--lr',        help='learning rate ',  metavar='FLOAT',           default=5e-4,                  type=click.FloatRange(min=0)) #5e-4
+@click.option('--seed',      help='Random seed', metavar='INT',                 default=1,                     type=click.IntRange(min=0), show_default=True)
+@click.option('--lr',        help='learning rate ',  metavar='FLOAT',           default=0.001,                  type=click.FloatRange(min=0)) #5e-4
 @click.option('--decay_rate',help='decay_rate',  metavar='FLOAT',           default=0.05,                  type=click.FloatRange(min=0))
-@click.option('--finetune', help='where to start from', metavar='BOOL',                 default=False,                 type=click.BOOL,  show_default=True) #False
-@click.option('--loss_name', help='name of loss function: mse, rmse, smse',             default='mse',         type=str)
-
 
 # scheduler_kwargs.
 @click.option('--sched',     help='scheduler type', metavar='SCHEDULER',        default='cosine',              type=str)
 @click.option('--lr_noise',  help='learning rate ',  metavar='FLOAT',           default=None,                  type=click.FloatRange(min=0))
-@click.option('--min_lr',    help='learning rate low bound',  metavar='FLOAT',  default=1e-5,                  type=click.FloatRange(min=0)) #1e-5
-@click.option('--warmup_lr', help='learning rate ',  metavar='FLOAT',           default=1e-6,                  type=click.FloatRange(min=0)) #1e-5
-@click.option('--warmup_epochs', help='Random seed', metavar='INT',             default=5,                     type=click.IntRange(min=0), show_default=True)
+@click.option('--min_lr',    help='learning rate low bound',  metavar='FLOAT',  default=1e-5,                  type=click.FloatRange(min=0))
+@click.option('--warmup_lr', help='learning rate ',  metavar='FLOAT',           default=1e-5,                  type=click.FloatRange(min=0))
+@click.option('--warmup_epochs', help='Random seed', metavar='INT',             default=10,                     type=click.IntRange(min=0), show_default=True)
 @click.option('--cooldown_epochs', help='Random seed', metavar='INT',           default=10,                     type=click.IntRange(min=0), show_default=True)
-# @click.option('--lr-noise', help='args of cosine schduler', )
-# @click.option('--lr-noise-pct', help='args of cosine schduler', )
-# @click.option('--lr-noise-std', help='args of cosine schduler', )
-
 
 
 # training_set_kwargs
@@ -137,20 +128,18 @@ def parse_comma_separated_list(s):
 @click.option('--workers',   help='DataLoader worker processes', metavar='INT', default=4,                     type=click.IntRange(min=0),  show_default=True) #24
 @click.option('--drop_last', help='Forget unfull batch', metavar='BOOL',        default=True,                  type=bool, show_default=True)
 @click.option('--pin_memory',help='pin_memory', metavar='BOOL',                 default=False,                  type=bool, show_default=True)
-@click.option('--std_trans', help='trans std from new to old', metavar='BOOL',        default=False,                  type=bool, show_default=True)
-@click.option('--use_transform', help='use transform', metavar='BOOL',        default=False,                  type=bool, show_default=True)
-@click.option('--insert_frame_aug', help='insert frames when training',  metavar='BOOL',        default=False,                  type=bool, show_default=True)
-@click.option('--use_longtitude_aug', help='longtitude shift aug', metavar='BOOL',        default=False,                  type=bool, show_default=True)
-@click.option('--use_latitude_aug', help='latitude flip aug', metavar='BOOL',        default=False,                  type=bool, show_default=True)
+@click.option('--in_length',   help='init input length',                        default=6,                      type=int) 
 
 # network_kwargs
 @click.option('--resh',      help='Base configuration',                         default=32,                     type=int) #32
 @click.option('--resw',      help='Base configuration',                         default=64,                     type=int) #64
-@click.option('--patch_size',help='Base configuration',                         default=8,                      type=int) #8 
+@click.option('--rest',      help='Base configuration',                         default=6,                     type=int)
+@click.option('--patch_size',help='Base configuration',                         default=8,                      type=int)
+@click.option('--patch_size_t',help='Base configuration',                       default=2,                      type=int)
 @click.option('--in_chans',  help='Base configuration',                         default=20,                     type=int)
 @click.option('--out_chans', help='Base configuration',                         default=20,                     type=int)
-@click.option('--embed_dim', help='Base configuration',                         default=768,                    type=int)
-@click.option('--depth',     help='Base configuration',                         default=12,                     type=int)
+@click.option('--embed_dim', help='Base configuration',                         default=384,                    type=int) #768
+@click.option('--depth',     help='Base configuration',                         default=6,                     type=int) #12
 @click.option('--mlp_ratio', help='Base configuration',                         default=4,                      type=int)
 # visualize_kwargs
 @click.option('--vis_loss_step',help='print loss frequency', metavar='INT',     default=40,                    type=click.IntRange(min=0),  show_default=True)
@@ -158,6 +147,7 @@ def parse_comma_separated_list(s):
 @click.option('--dump_epoch', help='visualization rank', metavar='INT',         default=20,                     type=click.IntRange(min=0),  show_default=True)
 
 def main(**kwargs):
+    # import pdb; pdb.set_trace()
     opts = dnnlib.EasyDict(kwargs) # Command line arguments.
     c = dnnlib.EasyDict() # Main config dict.
     c.num_gpus = opts.gpus
@@ -166,17 +156,9 @@ def main(**kwargs):
     c.epoch_t = opts.epoch_t
     c.epoch_f = opts.epoch_f
     c.resume = opts.resume
-    c.finetune = opts.finetune
     c.lr = opts.lr
-    c.loss_name = opts.loss_name
-
     c.training_set_kwargs = dnnlib.EasyDict(class_name=opts.dataset, root=opts.dir_data, mode='train', length=1, crop_coord=None)
-    c.training_set_kwargs.std_trans = opts.std_trans
-    # c.training_set_kwargs.use_transform = opts.use_transform
-    c.training_set_kwargs.insert_frame_aug = opts.insert_frame_aug
-    c.training_set_kwargs.use_longtitude_aug = opts.use_longtitude_aug
-    c.training_set_kwargs.use_latitude_aug = opts.use_latitude_aug
-
+    c.training_set_kwargs.in_length = opts.in_length
     c.random_seed = opts.seed
     c.data_loader_kwargs = dnnlib.EasyDict(prefetch_factor=2)
     c.data_loader_kwargs.num_workers = opts.workers
@@ -184,8 +166,9 @@ def main(**kwargs):
     c.data_loader_kwargs.pin_memory = opts.pin_memory
 
     c.network_kwargs = dnnlib.EasyDict()
-    c.network_kwargs.img_size = [opts.resh, opts.resw]
+    c.network_kwargs.clip_size = [opts.rest, opts.resh, opts.resw]
     c.network_kwargs.patch_size = opts.patch_size
+    c.network_kwargs.patch_size_T = opts.patch_size_t
     c.network_kwargs.in_chans = opts.in_chans
     c.network_kwargs.out_chans = opts.out_chans
     c.network_kwargs.embed_dim = opts.embed_dim
